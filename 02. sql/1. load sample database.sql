@@ -8,3 +8,4 @@ USE classicmodels;
 show databases;
 
 select * from customers;
+
