@@ -12,3 +12,10 @@
 # SQL DB Tool
 - DBeaver
     - https://goddaehee.tistory.com/202
+
+
+# mysql
+- 서버 시작 
+    - mysql.server start 
+- 서버 종료
+    - mysql> \q
