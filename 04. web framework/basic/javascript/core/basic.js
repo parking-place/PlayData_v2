@@ -1,2 +1,2 @@
-let value = true; 
-alert(typeof value);
+alert("외부 스크립트");
+
