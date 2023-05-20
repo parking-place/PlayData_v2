@@ -23,3 +23,6 @@ __pycache__
 # 가상환경 
 .venv
 Icon
+
+# Django samples
+**/Django/samples/**
