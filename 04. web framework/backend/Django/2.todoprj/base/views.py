@@ -51,6 +51,7 @@ class RegisterPage(FormView):
 class TaskList(LoginRequiredMixin, ListView):
     model = Task 
     context_object_name = 'tasks'
+    login_url = 'login/'
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
         context = super().get_context_data(**kwargs)
@@ -59,21 +60,23 @@ class TaskList(LoginRequiredMixin, ListView):
 
         search_input = self.request.GET.get('search-area') or ''
         if search_input:
-            context['tasks'] = context['tasks'].filter(title_contains=search_input)
+            context['tasks'] = context['tasks'].filter(title__contains=search_input)
 
         context['search_input'] = search_input 
 
-        return super().get_context_data(**kwargs)
+        return context 
     
 class TaskDetail(LoginRequiredMixin, DetailView):
     model = Task 
     context_object_name = 'task'
     template_name = 'base/task.html'
+    login_url = 'login/'
 
 class TaskCreate(LoginRequiredMixin, CreateView):
     model = Task 
     fields = ['title', 'description', 'complete']
     success_url = reverse_lazy('tasks')
+    login_url = 'login/'
 
     def form_valid(self, form: BaseModelForm) -> HttpResponse:
         form.instance.user = self.request.user 
@@ -83,11 +86,13 @@ class TaskUpdate(LoginRequiredMixin, UpdateView):
     model = Task 
     fields = ['title', 'description', 'complete']
     success_url = reverse_lazy('tasks')
+    login_url = 'login/'
 
 class DeleteView(LoginRequiredMixin, DeleteView):
     model = Task 
     context_object_name = 'task'
     success_url = reverse_lazy('tasks')
+    login_url = 'login/'
 
     def get_queryset(self) :
         owner = self.request.user 
