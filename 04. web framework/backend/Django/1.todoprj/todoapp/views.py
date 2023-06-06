@@ -30,7 +30,7 @@ def register_user(request):
 
         if len(pwd) < 3:
             messages.error(request, 'Password must be at least 3 characters')
-            return redirect('register-task')
+            return redirect('register-user')
     
         get_all_users_by_username = User.objects.filter(username=username)
         if get_all_users_by_username:

@@ -29,7 +29,7 @@ def user_register(request):
         return redirect('user-login')
 
     else:
-        return render(request, 'todoapp/register.html', {})
+        return render(request, 'user/register.html', {})
     
 def user_login(request):
     if request.user.is_authenticated:
@@ -46,7 +46,7 @@ def user_login(request):
             messages.error(request, 'Erro, wrong user details or user does not exist')
             return redirect('login-page')
     else:
-        return render(request, 'todoapp/login.html', {}) 
+        return render(request, 'user/login.html', {}) 
 
 def user_logout(request):
     logout(request)
