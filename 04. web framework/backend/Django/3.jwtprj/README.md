@@ -1,5 +1,6 @@
 # 학습목표 
 1. JWT(Json Web Token) 
+2. exception handler
 
 # 참고문서 
 ## JWT

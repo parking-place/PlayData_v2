@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import AuthenticationFailed , APIException
 
 from .serializers import UserSerializer
-from .authentication import create_access_token, create_refresh_token, decode_access_token
+from .authentication import create_access_token, create_refresh_token, decode_access_token, decode_refresh_token
 from .models import User 
 
 # Create your views here.
@@ -40,7 +40,6 @@ class LoginView(APIView):
 class UserView(APIView):
     def get(self, request):
         auth = get_authorization_header(request).split()
-        print('00000000000')
         if auth and len(auth) == 2:
             token = auth[1].decode('utf-8')
             id = decode_access_token(token)
@@ -51,4 +50,20 @@ class UserView(APIView):
         raise AuthenticationFailed('unauthenticated')
             
     
+class RefreshView(APIView):
+    def post(self, request):
+        refresh_token = request.COOKIES.get('refreshToken')
+        id = decode_refresh_token(refresh_token)
+        access_token = create_access_token(id)
+        return Response({
+            'token': access_token 
+        })
 
+class Logoutview(APIView):
+    def post(self, _):
+        response = Response()
+        response.delete_cookie(key='refreshToken')
+        response.data = {
+            'message': 'success'
+        }
+        return response

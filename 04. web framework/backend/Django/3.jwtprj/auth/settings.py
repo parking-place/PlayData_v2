@@ -104,9 +104,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# REST_FRAMEWORK = {
-#     'EXCEPTION_HANDLER': 'users.exceptions.status_code_handler'
-# }
+REST_FRAMEWORK = {
+    'EXCEPTION_HANDLER': 'users.exceptions.status_code_handler'
+}
 
 
 # Internationalization
