@@ -27,3 +27,4 @@ Icon
 
 # Django samples
 **/Django/samples/**
+*.sqlite3
