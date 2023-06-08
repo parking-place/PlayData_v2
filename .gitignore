@@ -21,8 +21,7 @@ __pycache__
 이관수
 
 # 가상환경 
-.venv
-.env
+.venv 
 Icon
 
 # Django samples
