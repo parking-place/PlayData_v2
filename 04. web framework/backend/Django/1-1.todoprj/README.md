@@ -7,6 +7,9 @@
 6. view(Function based view)
 7. template
 8. authentication(Function based view)
+9. mysql db 사용 
+> pip install mysqlclient
+
 
 
 # 참고문서 
