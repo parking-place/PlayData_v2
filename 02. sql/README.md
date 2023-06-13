@@ -6,7 +6,9 @@
     - https://www.mysqltutorial.org/
     - https://www.mysqltutorial.org/getting-started-with-mysql/
 - & 파이썬
-    - https://www.mysqltutorial.org/python-mysql-blob/
+    - https://yurimkoo.github.io/python/2019/09/14/connect-db-with-python.html
+    > pip install cryptography
+    > pip install PyMySQL
 
 
 # SQL DB Tool
