@@ -3,6 +3,10 @@
 - pip install pyautogui
 - pip install pyperclip 
 
+# [requests](https://www.daleseo.com/python-requests/)
+- 파이썬 HTTP 통신에 사용되는 모듈
+- pip install requests
+
 
 # 참고문서 
 - https://goodthings4me.tistory.com/491
