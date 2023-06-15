@@ -7,6 +7,9 @@
 - 파이썬 HTTP 통신에 사용되는 모듈
 - pip install requests
 
+# [beautifulsoup](https://wikidocs.net/85739)
+- HTML, XML, JSON 등 파일의 구문을 분석하는 모듈
+- pip install beautifulsoup4
 
 # 참고문서 
 - https://goodthings4me.tistory.com/491
