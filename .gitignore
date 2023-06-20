@@ -1,5 +1,6 @@
 # data
-data 
+data
+models
 img
 audio
 video
@@ -27,3 +28,6 @@ Icon
 # Django samples
 **/Django/samples/**
 *.sqlite3
+
+*/data/*
+*/models/*
