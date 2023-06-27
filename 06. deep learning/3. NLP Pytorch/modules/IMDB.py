@@ -232,18 +232,20 @@ class EarlyStopping():
         self.datetime = time.strftime
     # 얼리 스토핑 여부 확인 함수 정의
     def is_stop(self, model, score, epoch):
+        # 모델 저장(마지막 모델)
+        self.__save_last_model(model)
+        # 스코어가 타겟 스코어보다 낮을 경우
+        if score < self.target_score:
+            # patience 초기화
+            self.patience_count = 0
+            return False
+        
         # 스코어가 이전보다 좋을 경우
         if self.best_score < score:
             # 스코어를 업데이트
             self.best_score = score
             # 모델 저장
             self.__save_model(model, epoch)
-            # patience 초기화
-            self.patience_count = 0
-            return False
-        
-        # 스코어가 타겟 스코어보다 낮을 경우
-        if score < self.target_score:
             # patience 초기화
             self.patience_count = 0
             return False
@@ -260,6 +262,10 @@ class EarlyStopping():
     # 모델 저장 함수 정의
     def __save_model(self, model, epoch):
         model_name = f'IMDB_model_{self.datetime("%m%d_%H%M")}_{epoch+1:04d}.pth'
+        torch.save(model.state_dict(), self.save_path + model_name)
+    # 마지막 모델 저장 함수 정의
+    def __save_last_model(self, model):
+        model_name = f'IMDB_model_last.pth'
         torch.save(model.state_dict(), self.save_path + model_name)
         
 ######################
