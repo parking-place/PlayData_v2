@@ -35,7 +35,11 @@ try:
 except:
     DATA_PATH = "/home/parking/ml/data/data/IMDB/"
     MODEL_PATH = "/home/parking/ml/data/models/IMDB/"
-    
+
+# 데이터 경로 설정 함수 정의
+def set_path(path):
+    DATA_PATH = path + 'data/IMDB/'
+    MODEL_PATH = path + 'models/IMDB/'
     
 ######################
 # 데이터 로드
