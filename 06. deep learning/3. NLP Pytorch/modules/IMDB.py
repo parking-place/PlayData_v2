@@ -42,8 +42,9 @@ def set_path(path):
     MODEL_PATH = path + 'models/IMDB/'
     
 ######################
-# 데이터 로드
+# 데이터 로드/ 저장 함수 정의
 ######################
+# IMDB 데이터 로드 함수 정의
 def load_IMDB_data():
     # feature 로드
     features = np.load(DATA_PATH+'features.npy')
@@ -53,6 +54,15 @@ def load_IMDB_data():
     with open(DATA_PATH+'vocab.pkl', 'rb') as f:
         vocab = pkl.load(f)
     return (features, targets), vocab
+# IMDB 데이터 저장 함수 정의
+def save_IMDB_data(features, targets, vocab):
+    # feature 저장
+    np.save(DATA_PATH+'features.npy', features)
+    # target 저장
+    np.save(DATA_PATH+'targets.npy', targets)
+    # vocab 저장
+    with open(DATA_PATH+'vocab.pkl', 'wb') as f:
+        pkl.dump(vocab, f)
 
 
 ######################
