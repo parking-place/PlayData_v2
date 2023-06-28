@@ -347,7 +347,8 @@ def train(model, loader, optimizer, device, loss_fn):
         # print(output.shape, target.shape)
         # (batch_size, seq_len, num_classes) 끼리 비교하면 잘됨
         # loss 계산
-        loss = loss_fn(output, target)
+        for o, t in zip(output, target):
+            loss = loss_fn(o, t)
         # loss 역전파
         optimizer.zero_grad()
         loss.backward()
