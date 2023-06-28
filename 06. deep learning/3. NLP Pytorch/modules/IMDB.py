@@ -22,6 +22,8 @@ import matplotlib.pyplot as plt
 
 import time
 
+import pickle as pkl
+
 tqdm.pandas()
 
 try:
@@ -33,6 +35,20 @@ try:
 except:
     DATA_PATH = "/home/parking/ml/data/data/IMDB/"
     MODEL_PATH = "/home/parking/ml/data/models/IMDB/"
+    
+    
+######################
+# 데이터 로드
+######################
+def load_IMDB_data():
+    # feature 로드
+    features = np.load(DATA_PATH+'features.npy')
+    # target 로드
+    targets = np.load(DATA_PATH+'targets.npy')
+    # vocab 로드
+    with open(DATA_PATH+'vocab.pkl', 'rb') as f:
+        vocab = pkl.load(f)
+    return (features, targets), vocab
 
 
 ######################
@@ -245,7 +261,7 @@ class EarlyStopping():
             # 스코어를 업데이트
             self.best_score = score
             # 모델 저장
-            self.__save_model(model, epoch)
+            self.__save_best_model(model)
             # patience 초기화
             self.patience_count = 0
             return False
@@ -260,8 +276,8 @@ class EarlyStopping():
         # patience가 최대치를 넘지 않을 경우
         return False
     # 모델 저장 함수 정의
-    def __save_model(self, model, epoch):
-        model_name = f'IMDB_model_{self.datetime("%m%d_%H%M")}_{epoch+1:04d}.pth'
+    def __save_best_model(self, model):
+        model_name = f'IMDB_model_best.pth'
         torch.save(model.state_dict(), self.save_path + model_name)
     # 마지막 모델 저장 함수 정의
     def __save_last_model(self, model):
