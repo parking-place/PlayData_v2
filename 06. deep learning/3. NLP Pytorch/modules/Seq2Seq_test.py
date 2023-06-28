@@ -135,19 +135,19 @@ class ConvWordSeq2Seq(nn.Module):
         self.shape_size = (2 if bidirectional else 1) * n_layers
 
         self.encoding_layer = nn.RNN(
-                                    input_size=input_size,      # 입력값의 차원
-                                    hidden_size=hidden_size,    # 히든레이어의 차원
-                                    num_layers=n_layers,        # 각 히든당 레이어의 갯수
-                                    batch_first=True,           # 배치 사이즈를 맨 앞으로 설정
-                                    bidirectional=bidirectional,# 양방향 설정
-                                    )
+            input_size=input_size,      # 입력값의 차원
+            hidden_size=hidden_size,    # 히든레이어의 차원
+            num_layers=n_layers,        # 각 히든당 레이어의 갯수
+            batch_first=True,           # 배치 사이즈를 맨 앞으로 설정
+            bidirectional=bidirectional,# 양방향 설정
+        )
         self.decoding_layer = nn.RNN(
-                                    input_size=input_size,      # 위와 동일
-                                    hidden_size=hidden_size,
-                                    num_layers=n_layers,
-                                    batch_first=True,
-                                    bidirectional=bidirectional,
-                                    )
+            input_size=input_size,      # 위와 동일
+            hidden_size=hidden_size,
+            num_layers=n_layers,
+            batch_first=True,
+            bidirectional=bidirectional,
+        )
 
     def forward(self, enc_X, dec_X):
         # 기본 히든 벡터의 모양을 정의
@@ -224,7 +224,7 @@ def train(model, loader, optimizer, device, loss_fn):
         # 모델에 feature와 dec_input을 넣어 예측값 생성
         output = model(feature, dec_input)
         # print(output.shape, target.shape)
-        # print(output, target)
+        # (batch_size, seq_len, num_classes) 끼리 비교하면 잘됨
         # loss 계산
         loss = loss_fn(output, target)
         # loss 역전파
