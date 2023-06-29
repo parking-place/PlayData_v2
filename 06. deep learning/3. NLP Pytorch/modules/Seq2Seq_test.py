@@ -56,9 +56,11 @@ class ConverseWordDataset(Dataset):
             # 디코더의 입력값과 출력값을 구분하기 위해 시작 토큰과 끝 토큰을 추가
             self.y_dec = self.__add_se_token(_y)
             self.y_target = self.__add_se_token(_y, sep_tok='E')
+            # 평가 모드일 경우 사용할 가짜 입력값 생성
             self.y_fake = self.__get_eval_dec_input()
         else:
-            # y가 없으면 디코더의 기본 입력값만 생성
+            # y가 없으면 디코더의 가짜 입력값만 생성
+            # y_target을 None으로 반환하면 오류 -> 그냥 y_fake동일하게 생성
             self.y_dec = None
             self.y_target = self.__get_eval_dec_input()
             self.y_fake = self.__get_eval_dec_input()
@@ -70,6 +72,7 @@ class ConverseWordDataset(Dataset):
         # 임베딩 타입이 emb일 경우
         if self.embedding_type == 'emb':
             return self.__getitem_emb(idx)
+        # 임베딩 타입이 ohe일 경우
         elif self.embedding_type == 'ohe':
             return self.__getitem_ohe(idx)
     
@@ -177,8 +180,8 @@ class ConvWordEmbedding(nn.Module):
     def forward(self, X):
         return self.embedding(X)
 
-# Seq2Seq 레이어
-class ConvWordSeq2Seq(nn.Module):
+# Seq2Seq 레이어 (RNN)
+class ConvWordSeq2SeqRNN(nn.Module):
     def __init__(self, input_size, hidden_size, n_layers=1, bidirectional=False):
         super().__init__()
         self.enc_input_size = input_size
@@ -211,6 +214,41 @@ class ConvWordSeq2Seq(nn.Module):
         dec_output, _ = self.decoding_layer(dec_X, enc_hidden)
         return dec_output
 
+# Seq2Seq 레이어 (LSTM)
+class ConvWordSeq2SeqLSTM(nn.Module):
+    def __init__(self, input_size, hidden_size, n_layers=1, bidirectional=False):
+        super().__init__()
+        self.enc_input_size = input_size
+        self.hidden_size = hidden_size
+        self.shape_size = (2 if bidirectional else 1) * n_layers
+
+        self.encoding_layer = nn.LSTM(
+            input_size=input_size,      # 입력값의 차원
+            hidden_size=hidden_size,    # 히든레이어의 차원
+            num_layers=n_layers,        # 각 히든당 레이어의 갯수
+            batch_first=True,           # 배치 사이즈를 맨 앞으로 설정
+            bidirectional=bidirectional,# 양방향 설정
+        )
+        self.decoding_layer = nn.LSTM(
+            input_size=input_size,      # 위와 동일
+            hidden_size=hidden_size,
+            num_layers=n_layers,
+            batch_first=True,
+            bidirectional=bidirectional,
+        )
+
+    def forward(self, enc_X, dec_X):
+        # 기본 히든 벡터의 모양을 정의
+        shape = (self.shape_size, enc_X.size(0), self.hidden_size)
+        # 기본 히든 벡터, 셀 벡터를 생성
+        hidden_state = torch.zeros(shape).to(enc_X.device)
+        cell_state = torch.zeros(shape).to(enc_X.device)
+        # 인코더의 입력값을 넣어 인코딩
+        _, (enc_hidden, enc_cell) = self.encoding_layer(enc_X, (hidden_state, cell_state))
+        # 인코더의 히든 벡터를 디코더의 히든 벡터로 사용
+        dec_output, (_, __) = self.decoding_layer(dec_X, (enc_hidden, enc_cell))
+        return dec_output
+
 # 출력 레이어
 class ConvWordOutput(nn.Module):
     def __init__(self, input_size, output_size):
@@ -227,25 +265,36 @@ class ConvWordOutput(nn.Module):
 # 모델 정의
 ######################
 class ConvWordModel(nn.Module):
-    def __init__(self, vocab_size, embedding_size, hidden_size, n_layers=1, bidirectional=False, embedding_type='emb'):
+    def __init__(self, vocab_size, embedding_size, hidden_size, n_layers=1, bidirectional=False, embedding_type='emb', s2s_cell='rnn'):
         super().__init__()
         num_bi = 2 if bidirectional else 1
         self.embedding_type = embedding_type
         # 임베딩 레이어
         if embedding_type == 'emb':
-            self.embedding_layer = ConvWordEmbedding(vocab_size=vocab_size,         # 임베딩할 단어의 갯수
-                                                    embedding_size=embedding_size,  # 임베딩 결과의 차원
-                                                    )
+            self.embedding_layer = ConvWordEmbedding(
+                vocab_size=vocab_size,         # 임베딩할 단어의 갯수
+                embedding_size=embedding_size,  # 임베딩 결과의 차원
+            )
         # Seq2Seq 레이어
-        self.seq2seq_layer = ConvWordSeq2Seq(input_size=embedding_size,     # 인코더, 디코더의 입력값의 차원
-                                            hidden_size=hidden_size,        # 히든 레이어의 차원
-                                            n_layers=n_layers,              # 각 히든당 레이어의 갯수
-                                            bidirectional=bidirectional,    # 양방향 설정
-                                            )
+        if s2s_cell == 'rnn':
+            self.seq2seq_layer = ConvWordSeq2SeqRNN(
+                input_size=embedding_size,     # 인코더, 디코더의 입력값의 차원
+                hidden_size=hidden_size,        # 히든 레이어의 차원
+                n_layers=n_layers,              # 각 히든당 레이어의 갯수
+                bidirectional=bidirectional,    # 양방향 설정
+            )
+        elif s2s_cell == 'lstm':
+            self.seq2seq_layer = ConvWordSeq2SeqLSTM(
+                input_size=embedding_size,     # 인코더, 디코더의 입력값의 차원
+                hidden_size=hidden_size,        # 히든 레이어의 차원
+                n_layers=n_layers,              # 각 히든당 레이어의 갯수
+                bidirectional=bidirectional,    # 양방향 설정
+            )
         # 출력 레이어
-        self.output_layer = ConvWordOutput(input_size=num_bi * hidden_size, # 입력값의 차원(아웃풋 벡터의 차원)
-                                            output_size=vocab_size,         # 출력값의 차원(num_classes)
-                                            )
+        self.output_layer = ConvWordOutput(
+            input_size=num_bi * hidden_size, # 입력값의 차원(아웃풋 벡터의 차원)
+            output_size=vocab_size,         # 출력값의 차원(num_classes)
+        )
     
     def forward(self, X, y):
         if self.embedding_type == 'emb':
@@ -285,7 +334,7 @@ class EarlyStopping():
         # 베스트 스코어가 타겟 스코어보다 낮을 경우
         if self.best_score < self.target_score:
             # 스코어가 이전보다 안좋을 경우
-            if self.best_score > score:
+            if self.best_score >= score:
                 # patience 초기화
                 self.patience_count = 0
                 return False
