@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 from torchtext.vocab import build_vocab_from_iterator
 from sklearn.metrics import accuracy_score
 
+from torchinfo import summary
+
 from tqdm import tqdm
 
 ############################
@@ -24,17 +26,14 @@ class GerEngVocab():
         
         sep_list = ['<unk>', '<pad>', '<sos>', '<eos>']
         
-        self.vocab = build_vocab_from_iterator(
+        self.__vocab = build_vocab_from_iterator(
             data_iter,
             specials=sep_list
         )
         
-        self.vocab.set_default_index(self.vocab['<unk>'])
+        self.__vocab.set_default_index(self.__vocab['<unk>'])
         
-        self.vocab_size = len(self.vocab)
-
-        self.idx2word = self.vocab.get_itos()
-        self.word2idx = self.vocab.get_stoi()
+        self.vocab_size = len(self.__vocab)
     
     def __len__(self):
         return self.vocab_size
@@ -44,11 +43,11 @@ class GerEngVocab():
     
     # 단어 -> 인덱스
     def wrd2idx(self, word):
-        return self.word2idx[word]
+        return self.__vocab[word]
     
     # 인덱스 -> 단어
     def idx2wrd(self, idx):
-        return self.idx2word[idx]
+        return self.__vocab.get_itos()[idx]
     
     # vocab 생성을 위한 iterator
     def __iter_vocab(self, datas):
@@ -62,16 +61,16 @@ class GerEngDataset(Dataset):
     ########################
     # 필수 함수 정의
     ########################
-    def __init__(self, X, y=[], max_len=10, emb_type='ohe', train_mode=True):
+    def __init__(self, vocab, X, y=None, max_len=10, emb_type='ohe'):
         
-        self.__train_mode = train_mode if y == [] else False
+        self.__train_mode = True if y == [] else False
         self.__emb_type = emb_type
         self.__max_len = max_len
-        self.__vocab = GerEngVocab(X+y)
-        self.__oh_vector = torch.eye(len(self.__vocab))
+        self.__vocab = vocab
+        self.__oh_vector = np.eye(len(self.__vocab), dtype=np.int32)
         self.__X = self.__tokenizer(X)
         
-        if y != []:
+        if y is not None:
             _y = y
             self.__y = self.__tokenizer(y)
             self.__dec_input = self.__add_sep_token(self.__y)
@@ -80,7 +79,7 @@ class GerEngDataset(Dataset):
         else:
             self.__y = None
             self.__fake_dec_input = self.__add_sep_token(self.__get_initial_dec_input())
-            pass
+            self.__target = self.__add_sep_token(self.__get_initial_dec_input())
         
     def __len__(self):
         return len(self.__X)
@@ -96,19 +95,30 @@ class GerEngDataset(Dataset):
     ########################
     def __ohe_getitem(self, idx):
         ohe_X = self.__oh_encoding(self.__X[idx])
+        ohe_X = torch.tensor(ohe_X, dtype=torch.float32)
         if self.__train_mode and self.__y is not None:
             ohe_dec_input = self.__oh_encoding(self.__dec_input[idx])
             ohe_target = self.__oh_encoding(self.__target[idx])
-            return torch.tensor(ohe_X), torch.tensor(ohe_dec_input), torch.tensor(ohe_target)
+            ohe_dec_input = torch.tensor(ohe_dec_input, dtype=torch.float32)
+            ohe_target = torch.tensor(ohe_target, dtype=torch.float32)
+            return ohe_X, ohe_dec_input, ohe_target
         else:
             ohe_dec_input = self.__oh_encoding(self.__fake_dec_input[idx])
-            return torch.tensor(ohe_X), torch.tensor(ohe_dec_input), torch.tensor(ohe_dec_input)
+            ohe_target = self.__oh_encoding(self.__target[idx])
+            ohe_dec_input = torch.tensor(ohe_dec_input, dtype=torch.float32)
+            ohe_target = torch.tensor(ohe_target, dtype=torch.float32)
+            return ohe_X, ohe_dec_input, ohe_target
     
     def __emb_getitem(self, idx):
+        emb_X = torch.tensor(self.__X[idx], dtype=torch.float32)
         if self.__train_mode and self.__y is not None:
-            return self.__X[idx], self.__dec_input[idx], self.__target[idx]
+            emb_dec_input = torch.tensor(self.__dec_input[idx], dtype=torch.float32)
+            emb_target = torch.tensor(self.__target[idx], dtype=torch.float32)
+            return emb_X, emb_dec_input, emb_target
         else:
-            return self.__X[idx], self.__fake_dec_input[idx], self.__fake_dec_input[idx].copy()
+            emb_dec_input = torch.tensor(self.__fake_dec_input[idx], dtype=torch.float32)
+            emb_target = torch.tensor(self.__target[idx], dtype=torch.float32)
+            return emb_X, emb_dec_input, emb_target
     
     def __tokenizer(self, datas):
         padding_datas = self.__padding(datas)
@@ -126,7 +136,7 @@ class GerEngDataset(Dataset):
         return padding_datas
     
     def __oh_encoding(self, datas):
-        return self.__oh_vector[self.__vocab.wrd2idx(datas)]
+        return self.__oh_vector[datas]
     
     def __add_sep_token(self, token_datas, sep_token='<sos>'):
         added_array = None
@@ -142,9 +152,14 @@ class GerEngDataset(Dataset):
         for _ in range(len(self.__X)):
             fake_dec_input.append([self.__vocab.wrd2idx('<pad>') for _ in range(self.__max_len)])
         return np.array(fake_dec_input)
+    ########################
+    # 호출 함수 정의
+    ########################
+    def train(self):
+        self.__train_mode = True
     
-    def get_vocab(self):
-        return self.__vocab
+    def eval(self):
+        self.__train_mode = False
 
 
 ############################
@@ -152,14 +167,96 @@ class GerEngDataset(Dataset):
 ############################
 # 임베딩 레이어
 class Embedding(nn.Module):
-    def __init__(self, vocab_size, emb_dim):
+    def __init__(self, input_size, embedding_dim):
         super().__init__()
-        self.__emb = nn.Embedding(vocab_size, emb_dim)
+        self.__emb = nn.Embedding(input_size, embedding_dim)
     
     def forward(self, X):
-        return self.__emb(X)
+        return self.__emb(X.long())
+    
+# Attention 레이어 RNN
+class AttentionRNN(nn.Module):
+    def __init__(self, input_size, hidden_size, n_layers, bidirectional):
+        super().__init__()
+        self.__hidden_size = hidden_size
+        self.__shape_size = (2 if bidirectional else 1) * n_layers
+        
+        self.__encoding_layer = nn.RNN(
+            input_size=input_size,      # 입력값의 차원
+            hidden_size=hidden_size,    # 히든레이어의 차원
+            num_layers=n_layers,        # 각 히든당 레이어의 갯수
+            bidirectional=bidirectional,# 양방향 설정
+        )
+        self.__decoding_layer = nn.RNN(
+            input_size=input_size,      # 입력값의 차원
+            hidden_size=hidden_size,    # 히든레이어의 차원
+            num_layers=n_layers,        # 각 히든당 레이어의 갯수
+            bidirectional=bidirectional,# 양방향 설정
+        )
+    
+    def forward(self, enc_input, dec_input):
+        batch_size = enc_input.size(0)
+        enc_input = enc_input.transpose(0, 1)
+        dec_input = dec_input.transpose(0, 1)
+        # 초기값 설정
+        initial_hidden = torch.zeros(self.__shape_size, batch_size, self.__hidden_size).to(enc_input.device)
+        # 인코딩
+        enc_output, enc_hidden = self.__encoding_layer(enc_input, initial_hidden)
+        n_step = dec_input.size(0)
+        hidden_state = enc_hidden
+        # 스텝의 attention 가중치를 저장할 리스트
+        train_attn_weights = []
+        # 결과값을 저장할 텐서
+        responses = torch.empty(n_step, enc_input.size(1), self.__hidden_size*2).to(enc_input.device)
+        # n_step 별 디코딩
+        for i in range(n_step):
+            # 현재 스텝의 디코딩
+            current_dec_output, hidden_state = self.__decoding_layer(dec_input[i].unsqueeze(0), hidden_state)
+            # 현재 스텝의 가중치 계산
+            # weight.shape (batch_size, 1, n_step)
+            weight = self.__get_attention_weight(enc_output, current_dec_output)
+            # 현재 스텝의 가중치를 저장
+            train_attn_weights.append(weight.squeeze().data.cpu().numpy())
+            
+            # weight를 이용해 attention value 계산
+            # A.shape (a, b, C)
+            # B.shape (a, C, d)
+            # A.bmm(B).shape -> (a, b, d) (bmm = 배치별 행렬곱)
+            
+            # weight.shape                     : (batch_size, 1, n_step) 
+            # enc_output.transpose(0, 1).shape : (batch_size, n_step, n_hidden)
+            # attn_value.shape (batch_size, 1, n_hidden)
+            attn_value = weight.bmm(enc_output.transpose(0, 1))
+            
+            # dec_output과 attn_value의 shape을 맞춰줌
+            current_dec_output = current_dec_output.squeeze(0) # (, batch_size, n_hidden) -> (batch_size, n_hidden)
+            attn_value = attn_value.squeeze(1) # (batch_size, 1, n_hidden) -> (batch_size, n_hidden)
+            # current_dec_output과 attn_value를 연결후 reponses에 저장
+            responses[i] = torch.cat((current_dec_output, attn_value), dim=-1)
+            
+        # responses.shape (n_step, batch_size, n_hidden*2)
+        return responses, train_attn_weights
+    
+    def __get_attention_weight(self, enc_output, dec_output):
+        n_step = enc_output.size(0)
+        batch_size = enc_output.size(1)
+        # 값을 저장할 텐서 생성
+        # attention_score.shape (n_step, batch_size)
+        attention_score = torch.empty((batch_size, n_step)).to(enc_output.device)
+        # 각 스텝별 attention score 계산
+        for i in range(n_step):
+        # 내적을 이용해 attention score 계산
+        # enc_output[i].shape (batch_size, n_hidden)
+        # dec_output[0].shape (batch_size, n_hidden)
+            for j in range(batch_size):
+                attention_score[j, i] = torch.dot(enc_output[i, j], dec_output[0, j])
+        # attention score를 softmax를 이용해 확률값으로 변환
+        # attention_score.shape (batch_size, n_step)
+        # attention_score.unsqueeze(1).shape (batch_size, 1, n_step)
+        return F.softmax(attention_score, dim=-1).unsqueeze(1)
+    
 
-# Attention 레이어
+# Attention 레이어 LSTM
 class AttentionLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, n_layers, bidirectional):
         super().__init__()
@@ -180,9 +277,12 @@ class AttentionLSTM(nn.Module):
         )
     
     def forward(self, enc_input, dec_input):
+        batch_size = enc_input.size(0)
+        enc_input = enc_input.transpose(0, 1)
+        dec_input = dec_input.transpose(0, 1)
         # 초기값 설정
-        initial_hidden = torch.zeros(self.__shape_size, enc_input.size(0), self.__hidden_size).to(enc_input.device)
-        initial_cell = torch.zeros(self.__shape_size, enc_input.size(0), self.__hidden_size).to(enc_input.device)
+        initial_hidden = torch.zeros(self.__shape_size, batch_size, self.__hidden_size).to(enc_input.device)
+        initial_cell = torch.zeros(self.__shape_size, batch_size, self.__hidden_size).to(enc_input.device)
         # 인코딩
         enc_output, (enc_hidden, enc_cell) = self.__encoding_layer(enc_input, (initial_hidden, initial_cell))
         n_step = dec_input.size(0)
@@ -190,14 +290,14 @@ class AttentionLSTM(nn.Module):
         # 스텝의 attention 가중치를 저장할 리스트
         train_attn_weights = []
         # 결과값을 저장할 텐서
-        responses = torch.empty(n_step, enc_input.size(0), self.__hidden_size*2).to(enc_input.device)
+        responses = torch.empty(n_step, enc_input.size(1), self.__hidden_size*2).to(enc_input.device)
         # n_step 별 디코딩
         for i in range(n_step):
             # 현재 스텝의 디코딩
-            dec_output, (hidden_state, cell_state) = self.__decoding_layer(dec_input[i].unsqueeze(0), (hidden_state, cell_state))
+            current_dec_output, (hidden_state, cell_state) = self.__decoding_layer(dec_input[i].unsqueeze(0), (hidden_state, cell_state))
             # 현재 스텝의 가중치 계산
             # weight.shape (batch_size, 1, n_step)
-            weight = self.__get_attention_weight(enc_output, dec_output)
+            weight = self.__get_attention_weight(enc_output, current_dec_output)
             # 현재 스텝의 가중치를 저장
             train_attn_weights.append(weight.squeeze().data.cpu().numpy())
             
@@ -212,10 +312,10 @@ class AttentionLSTM(nn.Module):
             attn_value = weight.bmm(enc_output.transpose(0, 1))
             
             # dec_output과 attn_value의 shape을 맞춰줌
-            dec_output = dec_output.squeeze(0) # (, batch_size, n_hidden) -> (batch_size, n_hidden)
+            current_dec_output = current_dec_output.squeeze(0) # (, batch_size, n_hidden) -> (batch_size, n_hidden)
             attn_value = attn_value.squeeze(1) # (batch_size, 1, n_hidden) -> (batch_size, n_hidden)
-            # dec_output과 attn_value를 연결후 reponses에 저장
-            responses[i] = torch.cat((dec_output, attn_value), dim=-1)
+            # current_dec_output과 attn_value를 연결후 reponses에 저장
+            responses[i] = torch.cat((current_dec_output, attn_value), dim=-1)
             
         # responses.shape (n_step, batch_size, n_hidden*2)
         return responses, train_attn_weights
@@ -225,14 +325,14 @@ class AttentionLSTM(nn.Module):
         batch_size = enc_output.size(1)
         # 값을 저장할 텐서 생성
         # attention_score.shape (n_step, batch_size)
-        attention_score = torch.zeros((batch_size, n_step)).to(enc_output.device)
+        attention_score = torch.empty((batch_size, n_step)).to(enc_output.device)
         # 각 스텝별 attention score 계산
         for i in range(n_step):
         # 내적을 이용해 attention score 계산
         # enc_output[i].shape (batch_size, n_hidden)
-        # dec_output.shape    (batch_size, n_hidden)
+        # dec_output[0].shape (batch_size, n_hidden)
             for j in range(batch_size):
-                attention_score[j, i] = torch.dot(enc_output[i, j], dec_output[j])
+                attention_score[j, i] = torch.dot(enc_output[i, j], dec_output[0, j])
         # attention score를 softmax를 이용해 확률값으로 변환
         # attention_score.shape (batch_size, n_step)
         # attention_score.unsqueeze(1).shape (batch_size, 1, n_step)
@@ -242,12 +342,12 @@ class AttentionLSTM(nn.Module):
 class OutputLinear(nn.Module):
     def __init__(self, input_size, output_size):
         super().__init__()
-        self.__linear = nn.Linear(input_size, output_size)
+        self.__linear = nn.Linear(input_size, output_size, bias=False)
     
     def forward(self, X):
         # X.shape (n_step, batch_size, n_hidden*2)
         n_step  = X.size(0)
-        _X = X
+        _X = torch.empty(X.size(0), X.size(1), self.__linear.out_features).to(X.device)
         for i in range(n_step):
             # X[i].shape (batch_size, n_hidden*2)
             # _X[i].shape (batch_size, output_size)
@@ -267,7 +367,7 @@ class Ger2EngAttentionModel(nn.Module):
         
         # 임베딩 레이어
         if self.__emb_type == 'emb':
-            self.__embedding = nn.Embedding(
+            self.__embedding = Embedding(
                 input_size=vocab_size,
                 embedding_dim=emb_dim,
             )
@@ -280,7 +380,12 @@ class Ger2EngAttentionModel(nn.Module):
                 bidirectional=bidirectional,
             )
         elif self.__cell_type == 'rnn':
-            pass
+            self.__attention = AttentionRNN(
+                input_size=emb_dim,
+                hidden_size=hidden_dim,
+                n_layers=num_layers,
+                bidirectional=bidirectional,
+            )
         # 아웃풋 레이어
         self.__output = OutputLinear(
             input_size=hidden_dim*2,
@@ -363,7 +468,7 @@ class EarlyStopping():
 ############################
 # 모델 학습 함수 정의
 ############################
-def train(model, loader, optimizer, loss_fn, device):
+def train(model, loader, optimizer, loss_fn, device='cpu'):
     model.train()
     train_loss = None
     train_score = None
@@ -386,6 +491,8 @@ def train(model, loader, optimizer, loss_fn, device):
         outputs = outputs.detach().cpu().numpy().argmax(axis=-1)
         scores = []
         for output, target in zip(outputs, targets):
+            # print(output.shape, target.shape)
+            # print(output, target)
             scores.append(accuracy_score(output, target))
         train_score = np.mean(scores)
     return train_loss, train_score
@@ -414,3 +521,18 @@ def test(model, loader, device, is_target=False):
                 scores.append(accuracy_score(output, target))
             test_score = np.mean(scores)
     return test_pred, test_score
+
+############################
+# 학습 결과 시각화 함수 정의
+############################
+def show_loss_score(train_loss_list, train_score_list, test_score_list):
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    fig.suptitle('train with dec_input')
+    axes[0].plot(train_loss_list, label='train', alpha=0.8, linewidth=0.2)
+    axes[0].set_title('loss')
+    axes[0].legend()
+    axes[1].plot(train_score_list, label='train', alpha=0.8, linewidth=0.2)
+    axes[1].plot(test_score_list, label='valid(without dec_input)', alpha=0.8, linewidth=0.2)
+    axes[1].legend()
+    axes[1].set_title('accuracy')
+    plt.show()
