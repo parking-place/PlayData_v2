@@ -221,9 +221,9 @@ class LSTMLayer(nn.Module):
         output_raw = self.__get_hidden_state(_X, len(X))
         return output_raw
         
-    def __get_hidden_state(self, X, lenght):
+    def __get_hidden_state(self, X):
         # hidden_state와 cell_state의 shape 정의
-        shape = (self.shape_size, lenght, self.hidden_size)
+        shape = (self.shape_size, len(X), self.hidden_size)
         # hidden_state와 cell_state를 초기화
         hidden_state = torch.zeros(shape).to(X.device)
         cell_state = torch.zeros(shape).to(X.device)
